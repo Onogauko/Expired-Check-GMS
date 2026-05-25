@@ -108,28 +108,33 @@
   const EDIT_PASSWORD = 'admin123';
 
   let allRecords = [];
-  let editPasswordVerified = false;
   let scanner = null;
 
+  // ========== TABS ==========
   function showTab(tab) {
     document.getElementById('scan-page').classList.add('hidden');
     document.getElementById('dashboard-page').classList.add('hidden');
     document.getElementById('edit-page').classList.add('hidden');
-    document.getElementById('tab-scan').classList.remove('bg-blue-600','text-white'); document.getElementById('tab-scan').classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
-    document.getElementById('tab-dashboard').classList.remove('bg-blue-600','text-white'); document.getElementById('tab-dashboard').classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
-    document.getElementById('tab-edit').classList.remove('bg-blue-600','text-white'); document.getElementById('tab-edit').classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+    ['tab-scan','tab-dashboard','tab-edit'].forEach(id => {
+      const btn = document.getElementById(id);
+      btn.classList.remove('bg-blue-600','text-white');
+      btn.classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+    });
 
     if (tab === 'scan') {
       document.getElementById('scan-page').classList.remove('hidden');
-      document.getElementById('tab-scan').classList.add('bg-blue-600','text-white'); document.getElementById('tab-scan').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+      document.getElementById('tab-scan').classList.add('bg-blue-600','text-white');
+      document.getElementById('tab-scan').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
       document.getElementById('barcode').focus();
     } else if (tab === 'dashboard') {
       document.getElementById('dashboard-page').classList.remove('hidden');
-      document.getElementById('tab-dashboard').classList.add('bg-blue-600','text-white'); document.getElementById('tab-dashboard').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+      document.getElementById('tab-dashboard').classList.add('bg-blue-600','text-white');
+      document.getElementById('tab-dashboard').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
       loadDashboardData();
     } else if (tab === 'edit') {
       document.getElementById('edit-page').classList.remove('hidden');
-      document.getElementById('tab-edit').classList.add('bg-blue-600','text-white'); document.getElementById('tab-edit').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+      document.getElementById('tab-edit').classList.add('bg-blue-600','text-white');
+      document.getElementById('tab-edit').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
       loadEditData();
     }
   }
@@ -137,18 +142,54 @@
   function requestEditAccess() {
     const pw = prompt('Masukkan password untuk akses Edit Data:');
     if (pw === EDIT_PASSWORD) {
-      editPasswordVerified = true;
       showTab('edit');
     } else if (pw !== null) {
       alert('Password salah!');
     }
   }
 
-  // Scanner functions (sama seperti sebelumnya)
-  function startScanner() { /* ... kode scanner ... */ }
-  function onScanSuccess(decodedText) { document.getElementById('barcode').value = decodedText; fetchProduct(decodedText); stopScanner(); }
-  function stopScanner() { if (scanner) { scanner.stop().catch(e => console.error(e)); scanner = null; } const overlay = document.getElementById('scanner-overlay'); if (overlay) overlay.remove(); document.getElementById('barcode').focus(); }
+  // ========== SCANNER ==========
+  function startScanner() {
+    const overlay = document.createElement('div');
+    overlay.id = 'scanner-overlay';
+    overlay.className = 'fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4';
+    overlay.innerHTML = `
+      <div class="bg-white dark:bg-gray-800 rounded-lg p-4 w-full max-w-md">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-semibold dark:text-white">Scan Barcode</h2>
+          <button id="close-scanner" class="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white text-xl">✕</button>
+        </div>
+        <div id="scanner-container" class="w-full rounded overflow-hidden"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('close-scanner').addEventListener('click', stopScanner);
 
+    scanner = new Html5Qrcode("scanner-container");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    scanner.start({ facingMode: "environment" }, config,
+      (decodedText) => {
+        document.getElementById('barcode').value = decodedText;
+        fetchProduct(decodedText);
+        stopScanner();
+      },
+      () => {}
+    ).catch(err => {
+      showFeedback('Kamera tidak tersedia: ' + err.message, 'error');
+      stopScanner();
+    });
+  }
+
+  function stopScanner() {
+    if (scanner) {
+      scanner.stop().catch(e => console.error(e));
+      scanner = null;
+    }
+    const overlay = document.getElementById('scanner-overlay');
+    if (overlay) overlay.remove();
+    document.getElementById('barcode').focus();
+  }
+
+  // ========== PRODUCT LOOKUP ==========
   async function fetchProduct(barcode) {
     if (!barcode) return;
     try {
@@ -162,20 +203,56 @@
         document.getElementById('sku').value = data.sku || '';
         document.getElementById('itemDescription').value = data.itemDescription || '';
       }
-    } catch (err) { showFeedback('Gagal menghubungi server', 'error'); }
+    } catch (err) {
+      showFeedback('Gagal menghubungi server', 'error');
+    }
   }
 
   document.getElementById('barcode').addEventListener('input', function(e) {
     const code = e.target.value.trim();
     if (code.length >= 8) fetchProduct(code);
-    else { document.getElementById('sku').value = ''; document.getElementById('itemDescription').value = ''; }
+    else {
+      document.getElementById('sku').value = '';
+      document.getElementById('itemDescription').value = '';
+    }
   });
 
+  // ========== SUBMIT FORM (ADD) ==========
   document.getElementById('scan-form').addEventListener('submit', async function(e) {
     e.preventDefault();
-    // ... kode submit yang sudah ada ...
+    const barcode = document.getElementById('barcode').value.trim();
+    const sku = document.getElementById('sku').value.trim();
+    const itemDescription = document.getElementById('itemDescription').value.trim();
+    const qty = parseInt(document.getElementById('qty').value);
+    const expiredDate = document.getElementById('expiredDate').value;
+    const pic = document.getElementById('pic').value.trim();
+    const location = document.getElementById('location').value.trim();
+
+    if (!barcode || !sku || !itemDescription || !qty || !expiredDate || !pic || !location) {
+      showFeedback('Semua field wajib diisi dan barcode harus valid', 'error'); return;
+    }
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Menyimpan...';
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=addRecord`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barcode, sku, itemDescription, qty, expiredDate, pic, location })
+      });
+      const result = await res.json();
+      if (result.success) {
+        showFeedback('Data tersimpan!', 'success');
+        ['barcode','sku','itemDescription','qty','expiredDate','pic','location'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('barcode').focus();
+      } else {
+        showFeedback('Gagal menyimpan', 'error');
+      }
+    } catch (err) {
+      showFeedback('Gagal menghubungi server', 'error');
+    } finally { btn.disabled = false; btn.textContent = 'Simpan'; }
   });
 
+  // ========== DASHBOARD ==========
   async function loadDashboardData() {
     try {
       const res = await fetch(`${SCRIPT_URL}?action=getRecords`);
@@ -185,8 +262,36 @@
     } catch (err) { allRecords = []; applyFilters(); }
   }
 
-  function applyFilters() { /* ... filter dashboard ... */ }
+  function applyFilters() {
+    const bf = document.getElementById('filterBarcode')?.value.toLowerCase() || '';
+    const pf = document.getElementById('filterPic')?.value.toLowerCase() || '';
+    const lf = document.getElementById('filterLocation')?.value.toLowerCase() || '';
+    const sd = document.getElementById('filterStartDate')?.value || '';
+    const ed = document.getElementById('filterEndDate')?.value || '';
+    let filtered = allRecords;
+    if (bf) filtered = filtered.filter(r => (r.Barcode||'').toLowerCase().includes(bf));
+    if (pf) filtered = filtered.filter(r => (r.PIC||'').toLowerCase().includes(pf));
+    if (lf) filtered = filtered.filter(r => (r.Lokasi||'').toLowerCase().includes(lf));
+    if (sd) filtered = filtered.filter(r => r['Expired Date'] >= sd);
+    if (ed) filtered = filtered.filter(r => r['Expired Date'] <= ed);
+    const tbody = document.getElementById('table-body');
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Tidak ada data.</td></tr>';
+    } else {
+      tbody.innerHTML = filtered.map(r => `
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
+          <td class="px-4 py-3 text-sm font-mono">${r.Barcode||''}</td>
+          <td class="px-4 py-3 text-sm">${r.SKU||''}</td>
+          <td class="px-4 py-3 text-sm">${r['Item Description']||''}</td>
+          <td class="px-4 py-3 text-sm">${r.Qty||''}</td>
+          <td class="px-4 py-3 text-sm">${r['Expired Date']||''}</td>
+          <td class="px-4 py-3 text-sm">${r.PIC||''}</td>
+          <td class="px-4 py-3 text-sm">${r.Lokasi||''}</td>
+        </tr>`).join('');
+    }
+  }
 
+  // ========== EDIT DATA ==========
   async function loadEditData() {
     try {
       const res = await fetch(`${SCRIPT_URL}?action=getRecords`);
@@ -204,42 +309,59 @@
       tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500">Tidak ada data.</td></tr>';
       return;
     }
-    tbody.innerHTML = records.map(r => `
+    tbody.innerHTML = records.map(r => {
+      const safeRecord = {
+        ID: r.ID,
+        Barcode: r.Barcode || '',
+        SKU: r.SKU || '',
+        itemDescription: r['Item Description'] || '',
+        Qty: r.Qty || '',
+        expiredDate: r['Expired Date'] || '',
+        PIC: r.PIC || '',
+        Lokasi: r.Lokasi || '',
+      };
+      return `
       <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
-        <td class="px-4 py-3 text-sm font-mono">${r.Barcode||''}</td>
-        <td class="px-4 py-3 text-sm">${r.SKU||''}</td>
-        <td class="px-4 py-3 text-sm">${r['Item Description']||''}</td>
-        <td class="px-4 py-3 text-sm">${r.Qty||''}</td>
-        <td class="px-4 py-3 text-sm">${r['Expired Date']||''}</td>
-        <td class="px-4 py-3 text-sm">${r.PIC||''}</td>
-        <td class="px-4 py-3 text-sm">${r.Lokasi||''}</td>
+        <td class="px-4 py-3 text-sm font-mono">${safeRecord.Barcode}</td>
+        <td class="px-4 py-3 text-sm">${safeRecord.SKU}</td>
+        <td class="px-4 py-3 text-sm">${safeRecord.itemDescription}</td>
+        <td class="px-4 py-3 text-sm">${safeRecord.Qty}</td>
+        <td class="px-4 py-3 text-sm">${safeRecord.expiredDate}</td>
+        <td class="px-4 py-3 text-sm">${safeRecord.PIC}</td>
+        <td class="px-4 py-3 text-sm">${safeRecord.Lokasi}</td>
         <td class="px-4 py-3 text-sm space-x-1">
-          <button onclick='openEditModal(${JSON.stringify(r)})' class="text-blue-600 hover:underline text-xs">✏️ Edit</button>
-          <button onclick='deleteRecord("${r.ID}", ${r._rowIndex})' class="text-red-600 hover:underline text-xs">🗑️ Hapus</button>
+          <button onclick='openEditModal(${JSON.stringify(safeRecord).replace(/'/g, "&#39;")})' class="text-blue-600 hover:underline text-xs">✏️ Edit</button>
+          <button onclick='deleteRecord("${safeRecord.ID}")' class="text-red-600 hover:underline text-xs">🗑️ Hapus</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 
-  function openEditModal(record) {
-    document.getElementById('edit-id').value = record.ID;
+  window.openEditModal = function(record) {
+    console.log('openEditModal dipanggil', record);
+    document.getElementById('edit-id').value = record.ID || '';
     document.getElementById('edit-barcode').value = record.Barcode || '';
     document.getElementById('edit-sku').value = record.SKU || '';
-    document.getElementById('edit-itemDescription').value = record['Item Description'] || '';
+    document.getElementById('edit-itemDescription').value = record.itemDescription || '';
     document.getElementById('edit-qty').value = record.Qty || '';
-    document.getElementById('edit-expiredDate').value = record['Expired Date'] || '';
+    document.getElementById('edit-expiredDate').value = record.expiredDate || '';
     document.getElementById('edit-pic').value = record.PIC || '';
     document.getElementById('edit-location').value = record.Lokasi || '';
-    document.getElementById('edit-modal').classList.remove('hidden');
-    document.getElementById('edit-modal').classList.add('flex');
-  }
+    const modal = document.getElementById('edit-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  };
 
-  function closeEditModal() {
-    document.getElementById('edit-modal').classList.add('hidden');
-    document.getElementById('edit-modal').classList.remove('flex');
-  }
+  window.closeEditModal = function() {
+    const modal = document.getElementById('edit-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  };
 
+  // Event listener form edit
   document.getElementById('edit-form').addEventListener('submit', async function(e) {
     e.preventDefault();
+    console.log('Form edit disubmit');
     const id = document.getElementById('edit-id').value;
     const barcode = document.getElementById('edit-barcode').value.trim();
     const sku = document.getElementById('edit-sku').value.trim();
@@ -248,16 +370,21 @@
     const expiredDate = document.getElementById('edit-expiredDate').value.trim();
     const pic = document.getElementById('edit-pic').value.trim();
     const location = document.getElementById('edit-location').value.trim();
+
     if (!id || !barcode || !sku || !itemDescription || !qty || !expiredDate || !pic || !location) {
-      alert('Semua field harus diisi'); return;
+      alert('Semua field harus diisi');
+      return;
     }
+    const payload = { id, password: EDIT_PASSWORD, barcode, sku, itemDescription, qty, expiredDate, pic, location };
+    console.log('Payload update:', payload);
     try {
       const res = await fetch(`${SCRIPT_URL}?action=updateRecord`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, password: EDIT_PASSWORD, barcode, sku, itemDescription, qty, expiredDate, pic, location })
+        body: JSON.stringify(payload)
       });
       const result = await res.json();
+      console.log('Hasil update:', result);
       if (result.success) {
         closeEditModal();
         loadEditData();
@@ -266,12 +393,14 @@
         alert('Gagal update: ' + (result.error || 'Unknown error'));
       }
     } catch (err) {
+      console.error('Error fetch update:', err);
       alert('Gagal menghubungi server');
     }
   });
 
-  async function deleteRecord(id, rowIndex) {
+  window.deleteRecord = async function(id) {
     if (!confirm('Yakin hapus data ini?')) return;
+    console.log('Menghapus ID:', id);
     try {
       const res = await fetch(`${SCRIPT_URL}?action=deleteRecord`, {
         method: 'POST',
@@ -288,7 +417,7 @@
     } catch (err) {
       alert('Gagal menghubungi server');
     }
-  }
+  };
 
   function showEditFeedback(msg, type) {
     const fb = document.getElementById('edit-feedback');
@@ -302,7 +431,7 @@
     setTimeout(() => fb.innerHTML = '', 3000);
   }
 
-  // Mulai di tab scan
+  // Mulai
   showTab('scan');
 </script>
 </body>
