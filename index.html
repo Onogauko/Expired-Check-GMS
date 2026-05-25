@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Expired Goods Tracker - Preview (Adjusted)</title>
+  <title>Expired Goods Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -12,13 +13,6 @@
     function toggleDarkMode() {
       document.documentElement.classList.toggle('dark');
     }
-
-    // Simulasi MASTER sheet: barcode -> { sku, itemDescription }
-    const masterData = {
-      '8991234567890': { sku: 'SKU-001', itemDescription: 'Indomie Goreng' },
-      '8901234567891': { sku: 'SKU-002', itemDescription: 'Kopi Kapal Api' },
-      '1234567890123': { sku: 'SKU-003', itemDescription: 'Mie Sedap Ayam Bawang' },
-    };
   </script>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 transition-colors min-h-screen">
@@ -47,24 +41,24 @@
       <div class="flex gap-2">
         <input type="text" id="barcode" inputmode="numeric" placeholder="Scan atau ketik barcode" 
                class="flex-1 px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" required autofocus>
-        <button type="button" onclick="simulateScan()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">📷 Scan</button>
+        <button type="button" onclick="startScanner()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">📷 Scan</button>
       </div>
 
-      <!-- SKU (readonly, auto-filled from MASTER) -->
+      <!-- SKU (readonly) -->
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">SKU</label>
         <input type="text" id="sku" readonly placeholder="Otomatis terisi" 
                class="mt-1 w-full px-3 py-2 border rounded-md bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 cursor-not-allowed">
       </div>
 
-      <!-- Item Description (readonly, auto-filled) -->
+      <!-- Item Description (readonly) -->
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Item Description</label>
         <input type="text" id="itemDescription" readonly placeholder="Otomatis terisi"
                class="mt-1 w-full px-3 py-2 border rounded-md bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 cursor-not-allowed">
       </div>
 
-      <!-- Qty (user input) -->
+      <!-- Qty -->
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Qty</label>
         <input type="number" id="qty" placeholder="Jumlah" min="1" step="1"
@@ -103,20 +97,19 @@
     <div id="feedback" class="mt-4"></div>
   </div>
 
-  <!-- DASHBOARD PAGE (hidden initially) -->
+  <!-- DASHBOARD PAGE -->
   <div id="dashboard-page" class="max-w-6xl mx-auto px-4 hidden">
     <h1 class="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Riwayat Barang Expired</h1>
 
     <!-- Filters -->
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-      <input type="text" placeholder="Barcode" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
-      <input type="text" placeholder="PIC" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
-      <input type="text" placeholder="Lokasi" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
-      <input type="date" placeholder="Start Date" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
-      <input type="date" placeholder="End Date" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
+      <input type="text" id="filterBarcode" placeholder="Barcode" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
+      <input type="text" id="filterPic" placeholder="PIC" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
+      <input type="text" id="filterLocation" placeholder="Lokasi" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
+      <input type="date" id="filterStartDate" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
+      <input type="date" id="filterEndDate" class="px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700 dark:text-white" oninput="applyFilters()">
     </div>
 
-    <!-- Table -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead class="bg-gray-50 dark:bg-gray-700">
@@ -128,7 +121,6 @@
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Expired Date</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">PIC</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Lokasi</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Timestamp</th>
           </tr>
         </thead>
         <tbody id="table-body" class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -138,91 +130,135 @@
   </div>
 
   <script>
-    // ========================
-    // DATA STORE (simulasi DATA_INPUT)
-    // ========================
-    let expiredRecords = [
-      {
-        barcode: '8991234567890',
-        sku: 'SKU-001',
-        itemDescription: 'Indomie Goreng',
-        qty: 5,
-        expiredDate: '2026-07-01',
-        pic: 'Andi',
-        location: 'Gudang A',
-        timestamp: '2026-05-26T08:30:00.000Z'
-      },
-      {
-        barcode: '8901234567891',
-        sku: 'SKU-002',
-        itemDescription: 'Kopi Kapal Api',
-        qty: 10,
-        expiredDate: '2026-06-15',
-        pic: 'Budi',
-        location: 'Gudang B',
-        timestamp: '2026-05-26T09:15:00.000Z'
-      }
-    ];
+    // URL Google Apps Script Anda
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwm9RP6EEmJkx3m9lj7hY6iQb-f_TlKNNmN_DdpEbrZDsjPROrEV9AD9UXiAxeweQiM/exec';
 
     // ========================
-    // FUNCTIONS
+    // GLOBAL STATE
+    // ========================
+    let allRecords = [];
+
+    // ========================
+    // TABS
     // ========================
     function showTab(tab) {
+      const scanPage = document.getElementById('scan-page');
+      const dashboardPage = document.getElementById('dashboard-page');
+      const tabScan = document.getElementById('tab-scan');
+      const tabDashboard = document.getElementById('tab-dashboard');
+
       if (tab === 'scan') {
-        document.getElementById('scan-page').classList.remove('hidden');
-        document.getElementById('dashboard-page').classList.add('hidden');
-        document.getElementById('tab-scan').classList.add('bg-blue-600','text-white');
-        document.getElementById('tab-scan').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
-        document.getElementById('tab-dashboard').classList.remove('bg-blue-600','text-white');
-        document.getElementById('tab-dashboard').classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+        scanPage.classList.remove('hidden');
+        dashboardPage.classList.add('hidden');
+        tabScan.classList.add('bg-blue-600','text-white');
+        tabScan.classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+        tabDashboard.classList.remove('bg-blue-600','text-white');
+        tabDashboard.classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+        document.getElementById('barcode').focus();
       } else {
-        document.getElementById('scan-page').classList.add('hidden');
-        document.getElementById('dashboard-page').classList.remove('hidden');
-        document.getElementById('tab-dashboard').classList.add('bg-blue-600','text-white');
-        document.getElementById('tab-dashboard').classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
-        document.getElementById('tab-scan').classList.remove('bg-blue-600','text-white');
-        document.getElementById('tab-scan').classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
-        renderTable(expiredRecords);
+        scanPage.classList.add('hidden');
+        dashboardPage.classList.remove('hidden');
+        tabDashboard.classList.add('bg-blue-600','text-white');
+        tabDashboard.classList.remove('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+        tabScan.classList.remove('bg-blue-600','text-white');
+        tabScan.classList.add('bg-gray-300','dark:bg-gray-700','text-gray-800','dark:text-gray-200');
+        loadDashboardData();
       }
     }
 
-    // Auto-fill dari MASTER (barcode lookup)
-    function autoFillFromMaster(barcode) {
-      const product = masterData[barcode];
+    // ========================
+    // BARCODE SCANNER (html5-qrcode)
+    // ========================
+    let scanner = null;
+
+    function startScanner() {
+      // Buat overlay scanner
+      const overlay = document.createElement('div');
+      overlay.id = 'scanner-overlay';
+      overlay.className = 'fixed inset-0 z-50 bg-black bg-opacity-80 flex items-center justify-center p-4';
+      overlay.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 w-full max-w-md">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold dark:text-white">Scan Barcode</h2>
+            <button id="close-scanner" class="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white text-xl">✕</button>
+          </div>
+          <div id="scanner-container" class="w-full rounded overflow-hidden"></div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      // Event listener untuk tombol close
+      document.getElementById('close-scanner').addEventListener('click', stopScanner);
+
+      // Mulai scanner
+      scanner = new Html5Qrcode("scanner-container");
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+      scanner.start(
+        { facingMode: "environment" },
+        config,
+        onScanSuccess,
+        () => {} // ignore scan errors
+      ).catch(err => {
+        showFeedback('Kamera tidak tersedia: ' + err.message, 'error');
+        stopScanner();
+      });
+    }
+
+    function onScanSuccess(decodedText) {
+      document.getElementById('barcode').value = decodedText;
+      fetchProduct(decodedText);
+      stopScanner();
+    }
+
+    function stopScanner() {
+      if (scanner) {
+        scanner.stop().catch(err => console.error('Stop scanner error:', err));
+        scanner = null;
+      }
+      const overlay = document.getElementById('scanner-overlay');
+      if (overlay) overlay.remove();
+      document.getElementById('barcode').focus();
+    }
+
+    // ========================
+    // FETCH PRODUCT DARI MASTER
+    // ========================
+    async function fetchProduct(barcode) {
+      if (!barcode) return;
       const skuField = document.getElementById('sku');
       const descField = document.getElementById('itemDescription');
-      if (product) {
-        skuField.value = product.sku;
-        descField.value = product.itemDescription;
-      } else {
-        skuField.value = '';
-        descField.value = '';
-        showFeedback('Barcode tidak ditemukan di MASTER!', 'error', 4000);
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getProduct&barcode=${encodeURIComponent(barcode)}`);
+        const data = await res.json();
+        if (data.error) {
+          skuField.value = '';
+          descField.value = '';
+          showFeedback('Produk tidak ditemukan di MASTER', 'error');
+        } else {
+          skuField.value = data.sku || '';
+          descField.value = data.itemDescription || '';
+        }
+      } catch (err) {
+        showFeedback('Gagal menghubungi server', 'error');
       }
     }
 
-    // Simulasi scan barcode acak
-    function simulateScan() {
-      const barcodes = Object.keys(masterData);
-      if (barcodes.length === 0) return;
-      const randomBarcode = barcodes[Math.floor(Math.random() * barcodes.length)];
-      document.getElementById('barcode').value = randomBarcode;
-      autoFillFromMaster(randomBarcode);
-    }
-
-    // Event listener untuk input barcode manual
+    // Manual input barcode
     document.getElementById('barcode').addEventListener('input', function(e) {
       const code = e.target.value.trim();
       if (code.length >= 8) {
-        autoFillFromMaster(code);
+        fetchProduct(code);
       } else {
         document.getElementById('sku').value = '';
         document.getElementById('itemDescription').value = '';
       }
     });
 
-    // Submit form
-    document.getElementById('scan-form').addEventListener('submit', function(e) {
+    // ========================
+    // SUBMIT FORM -> DATA_INPUT
+    // ========================
+    document.getElementById('scan-form').addEventListener('submit', async function(e) {
       e.preventDefault();
       const barcode = document.getElementById('barcode').value.trim();
       const sku = document.getElementById('sku').value.trim();
@@ -232,91 +268,103 @@
       const pic = document.getElementById('pic').value.trim();
       const location = document.getElementById('location').value.trim();
 
-      // Validasi: SKU dan Item Desc harus terisi (berarti barcode valid)
-      if (!barcode || !sku || !itemDescription) {
-        showFeedback('Barcode tidak valid / produk tidak ditemukan di MASTER.', 'error');
-        return;
-      }
-      if (!qty || qty < 1) {
-        showFeedback('Qty harus diisi (minimal 1).', 'error');
-        return;
-      }
-      if (!expiredDate || !pic || !location) {
-        showFeedback('Semua field wajib diisi!', 'error');
+      if (!barcode || !sku || !itemDescription || !qty || !expiredDate || !pic || !location) {
+        showFeedback('Semua field wajib diisi dan barcode harus valid', 'error');
         return;
       }
 
-      // Simpan ke records (seolah append ke DATA_INPUT)
-      expiredRecords.unshift({
-        barcode,
-        sku,
-        itemDescription,
-        qty,
-        expiredDate,
-        pic,
-        location,
-        timestamp: new Date().toISOString()
-      });
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Menyimpan...';
 
-      // Reset form (field readonly ikut ter-reset)
-      document.getElementById('barcode').value = '';
-      document.getElementById('sku').value = '';
-      document.getElementById('itemDescription').value = '';
-      document.getElementById('qty').value = '';
-      document.getElementById('expiredDate').value = '';
-      document.getElementById('pic').value = '';
-      document.getElementById('location').value = '';
-      document.getElementById('barcode').focus();
-
-      showFeedback('Data tersimpan!', 'success');
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=addRecord`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ barcode, sku, itemDescription, qty, expiredDate, pic, location })
+        });
+        const result = await res.json();
+        if (result.success) {
+          showFeedback('Data tersimpan!', 'success');
+          // Reset form
+          document.getElementById('barcode').value = '';
+          document.getElementById('sku').value = '';
+          document.getElementById('itemDescription').value = '';
+          document.getElementById('qty').value = '';
+          document.getElementById('expiredDate').value = '';
+          document.getElementById('pic').value = '';
+          document.getElementById('location').value = '';
+          document.getElementById('barcode').focus();
+        } else {
+          showFeedback('Gagal menyimpan', 'error');
+        }
+      } catch (err) {
+        showFeedback('Gagal menghubungi server', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Simpan';
+      }
     });
 
-    function showFeedback(msg, type, duration = 3000) {
-      const fb = document.getElementById('feedback');
-      fb.innerHTML = `<div class="p-3 rounded-md ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${msg}</div>`;
-      setTimeout(() => fb.innerHTML = '', duration);
+    // ========================
+    // LOAD DASHBOARD DATA
+    // ========================
+    async function loadDashboardData() {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getRecords`);
+        const data = await res.json();
+        allRecords = Array.isArray(data) ? data : [];
+        applyFilters();
+      } catch (err) {
+        allRecords = [];
+        applyFilters();
+      }
     }
 
-    // Render dashboard table
+    function applyFilters() {
+      const barcodeFilter = document.getElementById('filterBarcode')?.value.toLowerCase() || '';
+      const picFilter = document.getElementById('filterPic')?.value.toLowerCase() || '';
+      const locationFilter = document.getElementById('filterLocation')?.value.toLowerCase() || '';
+      const startDate = document.getElementById('filterStartDate')?.value || '';
+      const endDate = document.getElementById('filterEndDate')?.value || '';
+
+      let filtered = allRecords;
+      if (barcodeFilter) filtered = filtered.filter(r => (r.Barcode || '').toLowerCase().includes(barcodeFilter));
+      if (picFilter) filtered = filtered.filter(r => (r.PIC || '').toLowerCase().includes(picFilter));
+      if (locationFilter) filtered = filtered.filter(r => (r.Lokasi || '').toLowerCase().includes(locationFilter));
+      if (startDate) filtered = filtered.filter(r => r['Expired Date'] >= startDate);
+      if (endDate) filtered = filtered.filter(r => r['Expired Date'] <= endDate);
+
+      renderTable(filtered);
+    }
+
     function renderTable(records) {
       const tbody = document.getElementById('table-body');
       if (records.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Tidak ada data.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-gray-500 dark:text-gray-400">Tidak ada data.</td></tr>`;
         return;
       }
       tbody.innerHTML = records.map(r => `
         <tr class="hover:bg-gray-50 dark:hover:bg-gray-750">
-          <td class="px-4 py-3 text-sm font-mono text-gray-900 dark:text-gray-100">${r.barcode}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.sku}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.itemDescription}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.qty}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.expiredDate}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.pic}</td>
-          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.location}</td>
-          <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">${new Date(r.timestamp).toLocaleString('id-ID')}</td>
+          <td class="px-4 py-3 text-sm font-mono text-gray-900 dark:text-gray-100">${r.Barcode || ''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.SKU || ''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r['Item Description'] || ''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.Qty || ''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r['Expired Date'] || ''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.PIC || ''}</td>
+          <td class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">${r.Lokasi || ''}</td>
         </tr>
       `).join('');
     }
 
-    // Filter sederhana client-side
-    function applyFilters() {
-      const filterInputs = document.querySelectorAll('#dashboard-page input');
-      const barcodeFilter = filterInputs[0].value.toLowerCase();
-      const picFilter = filterInputs[1].value.toLowerCase();
-      const locationFilter = filterInputs[2].value.toLowerCase();
-      const startDate = filterInputs[3].value;
-      const endDate = filterInputs[4].value;
-
-      let filtered = expiredRecords;
-      if (barcodeFilter) filtered = filtered.filter(r => r.barcode.includes(barcodeFilter));
-      if (picFilter) filtered = filtered.filter(r => r.pic.toLowerCase().includes(picFilter));
-      if (locationFilter) filtered = filtered.filter(r => r.location.toLowerCase().includes(locationFilter));
-      if (startDate) filtered = filtered.filter(r => r.expiredDate >= startDate);
-      if (endDate) filtered = filtered.filter(r => r.expiredDate <= endDate);
-      renderTable(filtered);
+    // Feedback
+    function showFeedback(msg, type) {
+      const fb = document.getElementById('feedback');
+      fb.innerHTML = `<div class="p-3 rounded-md ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${msg}</div>`;
+      setTimeout(() => fb.innerHTML = '', 3000);
     }
 
-    // Initial load
+    // Start on scan page
     showTab('scan');
   </script>
 </body>
